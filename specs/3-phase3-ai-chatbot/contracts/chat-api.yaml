@@ -1,0 +1,86 @@
+openapi: "3.1.0"
+info:
+  title: "Phase III Chat API"
+  version: "1.0.0"
+  description: "ChatKit backend endpoint for AI-powered todo chatbot"
+
+servers:
+  - url: http://localhost:8000
+    description: "Local development server"
+
+paths:
+  /chatkit:
+    post:
+      summary: "ChatKit streaming endpoint"
+      description: |
+        Receives user messages from the ChatKit frontend and streams agent responses.
+        This endpoint follows the ChatKit Python SDK protocol for self-hosted backends.
+        It handles:
+        - Receiving user messages with thread context
+        - Running the AI agent with MCP tools
+        - Streaming responses back to ChatKit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                messages:
+                  type: array
+                  description: "Conversation history"
+                  items:
+                    type: object
+                    properties:
+                      role:
+                        type: string
+                        enum: [user, assistant]
+                      content:
+                        type: string
+                thread_id:
+                  type: string
+                  description: "Thread identifier for session continuity"
+              required:
+                - messages
+      responses:
+        "200":
+          description: "Streamed agent response"
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: "Server-Sent Events stream with agent response chunks"
+        "500":
+          description: "Agent processing error"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /health:
+    get:
+      summary: "Health check (existing)"
+      description: "Returns service health status"
+      responses:
+        "200":
+          description: "Service healthy"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "ok"
+
+  /api/tasks:
+    description: "Phase II REST API — unchanged (FR-018)"
+
+  /api/tasks/{task_id}:
+    description: "Phase II REST API — unchanged (FR-018)"
+
+  /api/tasks/{task_id}/toggle:
+    description: "Phase II REST API — unchanged (FR-018)"

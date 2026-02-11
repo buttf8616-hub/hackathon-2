@@ -1,0 +1,393 @@
+openapi: 3.1.0
+info:
+  title: Todo API - Phase II
+  description: RESTful API for Todo Application
+  version: 1.0.0
+  contact:
+    name: Todo Evolution Project
+
+servers:
+  - url: http://localhost:8000
+    description: Development server
+  - url: https://api.todo.example.com
+    description: Production server
+
+tags:
+  - name: tasks
+    description: Task management operations
+
+paths:
+  /api/tasks:
+    get:
+      summary: List all tasks
+      description: Retrieve all tasks with optional filtering, sorting, and search
+      operationId: listTasks
+      tags:
+        - tasks
+      parameters:
+        - name: status
+          in: query
+          description: Filter by completion status
+          schema:
+            type: string
+            enum: [all, active, completed]
+            default: all
+        - name: priority
+          in: query
+          description: Filter by priority
+          schema:
+            type: string
+            enum: [high, medium, low]
+        - name: tag
+          in: query
+          description: Filter by tag
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search in title and description
+          schema:
+            type: string
+        - name: sort_by
+          in: query
+          description: Field to sort by
+          schema:
+            type: string
+            enum: [created_at, due_date, priority, title]
+            default: created_at
+        - name: sort_order
+          in: query
+          description: Sort order
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Task'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    post:
+      summary: Create a new task
+      description: Create a new task with the provided details
+      operationId: createTask
+      tags:
+        - tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/tasks/{id}:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Task ID
+        schema:
+          type: integer
+          minimum: 1
+
+    get:
+      summary: Get a task by ID
+      description: Retrieve a single task by its ID
+      operationId: getTask
+      tags:
+        - tasks
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    put:
+      summary: Update a task
+      description: Update an existing task with new details
+      operationId: updateTask
+      tags:
+        - tasks
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/ValidationError'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+    delete:
+      summary: Delete a task
+      description: Permanently delete a task
+      operationId: deleteTask
+      tags:
+        - tasks
+      responses:
+        '204':
+          description: Task deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /api/tasks/{id}/toggle:
+    parameters:
+      - name: id
+        in: path
+        required: true
+        description: Task ID
+        schema:
+          type: integer
+          minimum: 1
+
+    patch:
+      summary: Toggle task completion
+      description: Toggle the completion status of a task
+      operationId: toggleTask
+      tags:
+        - tasks
+      responses:
+        '200':
+          description: Task toggled successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    Priority:
+      type: string
+      enum: [high, medium, low]
+      description: Task priority level
+
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - description
+        - completed
+        - priority
+        - tags
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: integer
+          description: Unique task identifier
+          example: 1
+        title:
+          type: string
+          maxLength: 500
+          description: Task title
+          example: "Buy groceries"
+        description:
+          type: string
+          maxLength: 2000
+          description: Detailed task description
+          example: "Milk, bread, eggs"
+        completed:
+          type: boolean
+          description: Whether task is completed
+          example: false
+        priority:
+          $ref: '#/components/schemas/Priority'
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+          description: Task tags
+          example: ["shopping", "personal"]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+          example: "2026-02-15"
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+          example: "2026-02-08T10:30:00Z"
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+          example: "2026-02-08T10:30:00Z"
+
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Task title
+          example: "Buy groceries"
+        description:
+          type: string
+          maxLength: 2000
+          default: ""
+          description: Detailed task description
+          example: "Milk, bread, eggs"
+        completed:
+          type: boolean
+          default: false
+          description: Initial completion status
+        priority:
+          $ref: '#/components/schemas/Priority'
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+          default: []
+          description: Task tags
+          example: ["shopping"]
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+          example: "2026-02-15"
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 500
+          description: Task title
+        description:
+          type: string
+          maxLength: 2000
+          description: Detailed task description
+        completed:
+          type: boolean
+          description: Completion status
+        priority:
+          $ref: '#/components/schemas/Priority'
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+          description: Task tags
+        due_date:
+          type: string
+          format: date
+          nullable: true
+          description: Target completion date
+
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error message
+          example: "Task not found"
+
+    ValidationError:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: array
+          items:
+            type: object
+            properties:
+              loc:
+                type: array
+                items:
+                  oneOf:
+                    - type: string
+                    - type: integer
+                description: Location of the error
+              msg:
+                type: string
+                description: Error message
+              type:
+                type: string
+                description: Error type
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Task not found"
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ValidationError'
+          example:
+            detail:
+              - loc: ["body", "title"]
+                msg: "field required"
+                type: "value_error.missing"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            detail: "Internal server error"
