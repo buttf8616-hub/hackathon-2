@@ -1,0 +1,41 @@
+# Helm Values Contract: Phase IV – Local Kubernetes Deployment
+# Feature: 004-phase4-k8s-deployment
+# Date: 2026-02-12
+#
+# This file defines the contract for helm/todo-app/values.yaml
+# All configurable parameters for the Helm chart are defined here.
+
+# --- Backend Service ---
+backend:
+  name: todo-backend
+  image:
+    repository: todo-backend
+    tag: latest
+    pullPolicy: Never  # Local Minikube images, no registry
+  replicas: 1
+  port: 8000
+  service:
+    type: NodePort      # NodePort so browser can reach API directly
+    port: 8000
+    nodePort: 30001
+  env:
+    DATABASE_URL: ""              # REQUIRED: Neon PostgreSQL connection string
+    GEMINI_API_KEY: ""            # REQUIRED: Google Gemini API key
+    GEMINI_MODEL: "gemini-2.5-flash"
+    CORS_ORIGINS: "http://localhost:3000,http://todo-frontend:3000"
+
+# --- Frontend Service ---
+frontend:
+  name: todo-frontend
+  image:
+    repository: todo-frontend
+    tag: latest
+    pullPolicy: Never  # Local Minikube images, no registry
+  replicas: 1
+  port: 3000
+  service:
+    type: NodePort
+    port: 3000
+    nodePort: 30000
+  env:
+    NEXT_PUBLIC_API_URL: "http://todo-backend:8000"  # Will be overridden at deploy time

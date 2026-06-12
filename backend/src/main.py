@@ -9,8 +9,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
+from src.api.auth import router as auth_router
 from src.api.tasks import router as tasks_router
 from src.database import init_db
+from src.models.user import User  # noqa: F401 — ensure table is created
 
 load_dotenv()
 
@@ -68,6 +70,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(auth_router)
 app.include_router(tasks_router)
 
 
@@ -87,12 +90,14 @@ async def chat_endpoint(request: ChatRequest) -> StreamingResponse:
 
     # Add new messages to history
     for msg in request.messages:
-        session_history.append({"role": msg.role, "content": msg.content})
+        if msg.role in ("user", "assistant") and msg.content.strip():
+            session_history.append({"role": msg.role, "content": msg.content})
 
-    # Build input for the agent (full conversation)
+    # Build input for the agent — only clean user/assistant messages
     input_messages = [
         {"role": m["role"], "content": m["content"]}
         for m in session_history
+        if m.get("role") in ("user", "assistant") and m.get("content", "").strip()
     ]
 
     async def event_stream():
@@ -103,21 +108,18 @@ async def chat_endpoint(request: ChatRequest) -> StreamingResponse:
             full_response = ""
 
             async for event in result.stream_events():
-                # Extract text deltas from raw responses
-                if event.type == "raw_response_event" and hasattr(event.data, "choices"):
-                    for choice in event.data.choices:
-                        if hasattr(choice, "delta") and hasattr(choice.delta, "content"):
-                            content = choice.delta.content
-                            if content:
-                                full_response += content
-                                yield f"data: {json.dumps({'type': 'delta', 'content': content})}\n\n"
+                if event.type == "raw_response_event":
+                    data = event.data
+                    if type(data).__name__ == "ResponseTextDeltaEvent" and hasattr(data, "delta"):
+                        content = data.delta
+                        if content:
+                            full_response += content
+                            yield f"data: {json.dumps({'type': 'delta', 'content': content})}\n\n"
 
-            # If we got a final output but no streaming deltas, use the final output
-            if not full_response:
-                final = await result.final_output_as(str)
-                if final:
-                    full_response = final
-                    yield f"data: {json.dumps({'type': 'delta', 'content': full_response})}\n\n"
+            # If we got no streaming deltas, use the final output
+            if not full_response and result.final_output:
+                full_response = result.final_output
+                yield f"data: {json.dumps({'type': 'delta', 'content': full_response})}\n\n"
 
             # Store assistant response in session
             if full_response:
@@ -139,24 +141,28 @@ async def chat_sync_endpoint(request: ChatRequest) -> JSONResponse:
     session_history = sessions.get(request.session_id, [])
 
     for msg in request.messages:
-        session_history.append({"role": msg.role, "content": msg.content})
+        if msg.role in ("user", "assistant") and msg.content.strip():
+            session_history.append({"role": msg.role, "content": msg.content})
 
     input_messages = [
         {"role": m["role"], "content": m["content"]}
         for m in session_history
+        if m.get("role") in ("user", "assistant") and m.get("content", "").strip()
     ]
 
     try:
         from agents import Runner
         agent = get_agent()
         result = await Runner.run(agent, input_messages)
-        response_text = result.final_output
+        response_text = result.final_output or "Done! Is there anything else you'd like me to help with?"
 
         session_history.append({"role": "assistant", "content": response_text})
         sessions[request.session_id] = session_history
 
         return JSONResponse(content={"response": response_text})
-    except Exception:
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
         return JSONResponse(
             status_code=500,
             content={"response": "I'm having trouble connecting right now. Please try again in a moment."},
