@@ -16,7 +16,12 @@ if not DATABASE_URL:
         "Copy .env.example to .env and configure your Neon PostgreSQL connection string."
     )
 
-engine = create_async_engine(DATABASE_URL, echo=False)
+engine = create_async_engine(
+    DATABASE_URL,
+    echo=False,
+    pool_pre_ping=True,
+    pool_recycle=300,
+)
 
 
 async def init_db() -> None:

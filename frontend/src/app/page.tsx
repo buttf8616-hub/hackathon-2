@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback, useMemo } from 'react';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import { TaskCreate, TaskUpdate } from '@/types/task';
 import { useTasksQuery, useCreateTask, useUpdateTask, useDeleteTask, useToggleTask } from '@/lib/hooks';
@@ -14,6 +15,21 @@ import ChatPanel from '@/components/ChatPanel';
 type SidebarView = 'all' | 'today' | 'upcoming' | 'completed' | 'high' | 'medium' | 'low';
 
 export default function Home() {
+  const router = useRouter();
+  const [authChecked, setAuthChecked] = useState(false);
+  const [currentUser, setCurrentUser] = useState<{ username: string; email?: string } | null>(null);
+  const [showProfile, setShowProfile] = useState(false);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    const user = localStorage.getItem('user');
+    if (!token || !user) {
+      router.push('/login');
+      return;
+    }
+    setCurrentUser(JSON.parse(user));
+    setAuthChecked(true);
+  }, [router]);
   const [showForm, setShowForm] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [sidebarView, setSidebarView] = useState<SidebarView>('all');
@@ -142,6 +158,20 @@ export default function Home() {
         return null;
     }
   };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
+  };
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-[#0a0a0f] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-cyan-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0a0a0f] relative overflow-hidden">
@@ -403,8 +433,8 @@ export default function Home() {
             </div>
           </nav>
 
-          {/* Bottom: AI Assistant button */}
-          <div className="px-4 py-4 border-t border-gray-800/60">
+          {/* Bottom: AI Assistant + User */}
+          <div className="px-4 py-4 border-t border-gray-800/60 space-y-3">
             <button
               onClick={() => setShowChat(!showChat)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all text-sm font-semibold ${
@@ -418,13 +448,32 @@ export default function Home() {
               </svg>
               {showChat ? 'Close AI Chat' : 'AI Assistant'}
             </button>
+
+            {/* User info + Logout */}
+            <div className="flex items-center justify-between px-2">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 bg-cyan-500/20 rounded-full flex items-center justify-center">
+                  <span className="text-xs text-cyan-400 font-bold">{currentUser?.username?.charAt(0).toUpperCase()}</span>
+                </div>
+                <span className="text-sm text-gray-400 truncate max-w-[120px]">{currentUser?.username}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+                title="Sign out"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+              </button>
+            </div>
           </div>
         </aside>
 
         {/* ===== MAIN CONTENT ===== */}
         <div className={`flex-1 transition-all duration-300 ${showChat ? 'mr-[420px]' : ''}`}>
           {/* Header */}
-          <header className="sticky top-0 z-20 backdrop-blur-xl bg-[#0a0a0f]/80 border-b border-gray-800/50">
+          <header className="sticky top-0 z-20 backdrop-blur-xl bg-[#0a0a0f]/80 border-b border-gray-800/50 relative">
             <div className="max-w-4xl mx-auto px-4 py-3.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -493,6 +542,39 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* Profile button — pinned to top-right corner of viewport */}
+            <div className="fixed top-3 right-4 z-[60]">
+              <button
+                onClick={() => setShowProfile(!showProfile)}
+                className="w-9 h-9 bg-cyan-500/20 rounded-full flex items-center justify-center ring-1 ring-cyan-500/30 hover:bg-cyan-500/30 transition-all"
+              >
+                <span className="text-sm text-cyan-400 font-bold">{currentUser?.username?.charAt(0).toUpperCase()}</span>
+              </button>
+
+              {showProfile && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setShowProfile(false)} />
+                  <div className="absolute right-0 mt-2 w-56 bg-[#12121a] border border-gray-800/80 rounded-xl shadow-xl shadow-black/40 z-50 overflow-hidden">
+                    <div className="px-4 py-3 border-b border-gray-800/60">
+                      <p className="text-sm font-semibold text-white">{currentUser?.username}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{currentUser?.email || 'No email'}</p>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        onClick={handleLogout}
+                        className="w-full flex items-center gap-2 px-4 py-2.5 text-sm text-gray-400 hover:text-red-400 hover:bg-red-500/5 transition-all"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </header>
 
